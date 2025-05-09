@@ -164,23 +164,99 @@ class MCDCIntegerTester:
             return {name: model[var].as_long() 
                    for name, var in vars_dict.items()}
         return None
+    
+    def generate_mcdc_tests(self) -> List[Dict]:
+        """Generate MC/DC test cases"""
+        test_cases = []
+        
+        # For each condition
+        for i, var in enumerate(self.boolean_vars):
+            pair_found = False
+            
+            # Trying different combinations for independence pairs
+            for others in range(2 ** (len(self.boolean_vars) - 1)):
+                # Create two assignments that differ only in var
+                assignment1 = {}
+                assignment2 = {}
+                
+                # Setting up the assignments
+                bit = 0
+                for j, other_var in enumerate(self.boolean_vars):
+                    if j == i:
+                        assignment1[other_var.name] = 0
+                        assignment2[other_var.name] = 1
+                    else:
+                        val = (others >> bit) & 1
+                        assignment1[other_var.name] = val
+                        assignment2[other_var.name] = val
+                        bit += 1
+                
+                # Finding inputs for both assignments
+                inputs1 = self.find_integer_inputs(assignment1, var.name)
+                inputs2 = self.find_integer_inputs(assignment2, var.name)
+                
+                if inputs1 and inputs2:
+                    # Verifying independence
+                    output1 = self.evaluate_condition(inputs1)
+                    output2 = self.evaluate_condition(inputs2)
+                    
+                    if output1 != output2:
+                        pair_found = True
+                        test_case1 = {
+                            'inputs': inputs1,
+                            'expected_output': output1,
+                            'condition_tested': var.name,
+                            'condition_value': 0,
+                            'assignments': assignment1
+                        }
+                        test_case2 = {
+                            'inputs': inputs2,
+                            'expected_output': output2,
+                            'condition_tested': var.name,
+                            'condition_value': 1,
+                            'assignments': assignment2
+                        }
+                        test_cases.extend([test_case1, test_case2])
+                        self.coverage_data['covered_conditions'].add(var.name)
+                        self.coverage_data['total_cases'] += 2
+                        self.coverage_data['test_cases'].extend([test_case1, test_case2])
+                        break
+            
+            if not pair_found:
+                print(f"Warning: Could not find independence pair for condition {var.name}")
+        
+        return test_cases
 
-# Testing find_integer_inputs
+
+#Testing genarate_mcdc_tests
 conditions = [
-    ("x > 5", lambda env: env["var_0"] > 5),
-    ("y != 10", lambda env: env["var_1"] != 10),
+    ("x > 0", lambda env: env["var_0"] > 0),
+    ("y == 5", lambda env: env["var_1"] == 5)
 ]
+decision_structure = "B0 AND B1"
 
-tester = MCDCIntegerTester(conditions, "B0 OR B1")
+tester = MCDCIntegerTester(conditions, decision_structure)
+test_cases = tester.generate_mcdc_tests()
 
-# Target boolean condition: B0 = True, B1 = False
-target_bools: Dict[str, int] = {
-    'B0': 1,
-    'B1': 0
-}
+for i, test in enumerate(test_cases, 1):
+    print(f"Test Case {i}:")
+    print(f"  Inputs: {test['inputs']}")
+    print(f"  Expected Output: {test['expected_output']}")
+    print(f"  Condition Tested: {test['condition_tested']}")
+    print(f"  Boolean Assignments: {test['assignments']}")
 
-inputs = tester.find_integer_inputs(target_bools, "B0")
 
-# Print result
-print("Generated Inputs:", inputs)
+assert len(test_cases) == 4, "Should produce 2 test cases per condition"
+print(" Correct number of test cases (2 per condition)")
 
+for i in range(0, len(test_cases), 2):
+    c1, c2 = test_cases[i], test_cases[i + 1]
+    assert c1["condition_tested"] == c2["condition_tested"], "Pair must test the same condition"
+    print(f" Condition {c1['condition_tested']} tested independently")
+    assert c1["expected_output"] != c2["expected_output"], "Outputs must differ"
+    print(f" Condition {c1['condition_tested']} causes output to change")
+    # Verifying other boolean assignments are the same
+    for k in c1["assignments"]:
+        if k != c1["condition_tested"]:
+            assert c1["assignments"][k] == c2["assignments"][k], f"{k} should match in both assignments"
+print("✅ All MC/DC condition independence checks passed")
