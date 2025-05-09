@@ -5,3 +5,5 @@ pandas
 pytest
 sortedcontainers
 pyeda
+Z3
+Z3-solver

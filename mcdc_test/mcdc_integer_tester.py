@@ -1,5 +1,4 @@
 from pyeda.inter import *
-from itertools import product
 from z3 import ( 
     Solver,
     Int,
