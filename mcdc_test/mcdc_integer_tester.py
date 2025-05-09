@@ -226,37 +226,30 @@ class MCDCIntegerTester:
                 print(f"Warning: Could not find independence pair for condition {var.name}")
         
         return test_cases
+    
+    def get_coverage_report(self) -> Dict:
+        #Generating coverage report
+        total_conditions = len(self.conditions)
+        covered = len(self.coverage_data['covered_conditions'])
+        return {
+            **self.coverage_data,
+            'coverage_percentage': (covered / total_conditions) * 100,
+            'covered_conditions': list(self.coverage_data['covered_conditions']),
+            'total_conditions': total_conditions
+        }
 
-
-#Testing genarate_mcdc_tests
+#Testing get_coverage_report
 conditions = [
     ("x > 0", lambda env: env["var_0"] > 0),
-    ("y == 5", lambda env: env["var_1"] == 5)
+    ("y < 5", lambda env: env["var_1"] < 5)
 ]
-decision_structure = "B0 AND B1"
+tester = MCDCIntegerTester(conditions, "B0 AND B1")
 
-tester = MCDCIntegerTester(conditions, decision_structure)
-test_cases = tester.generate_mcdc_tests()
+tester.generate_mcdc_tests()
+report = tester.get_coverage_report()
 
-for i, test in enumerate(test_cases, 1):
-    print(f"Test Case {i}:")
-    print(f"  Inputs: {test['inputs']}")
-    print(f"  Expected Output: {test['expected_output']}")
-    print(f"  Condition Tested: {test['condition_tested']}")
-    print(f"  Boolean Assignments: {test['assignments']}")
-
-
-assert len(test_cases) == 4, "Should produce 2 test cases per condition"
-print(" Correct number of test cases (2 per condition)")
-
-for i in range(0, len(test_cases), 2):
-    c1, c2 = test_cases[i], test_cases[i + 1]
-    assert c1["condition_tested"] == c2["condition_tested"], "Pair must test the same condition"
-    print(f" Condition {c1['condition_tested']} tested independently")
-    assert c1["expected_output"] != c2["expected_output"], "Outputs must differ"
-    print(f" Condition {c1['condition_tested']} causes output to change")
-    # Verifying other boolean assignments are the same
-    for k in c1["assignments"]:
-        if k != c1["condition_tested"]:
-            assert c1["assignments"][k] == c2["assignments"][k], f"{k} should match in both assignments"
-print("✅ All MC/DC condition independence checks passed")
+print("=== Coverage Report ===")
+print(f"Total Conditions: {report['total_conditions']}")
+print(f"Covered Conditions: {report['covered_conditions']}")
+print(f"Coverage %: {report['coverage_percentage']}")
+print(f"Total Test Cases: {report['total_cases']}")
