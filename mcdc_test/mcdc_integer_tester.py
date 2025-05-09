@@ -131,44 +131,56 @@ class MCDCIntegerTester:
         assignment = {var: bool_values[var.name] for var in self.boolean_vars}
         return self.bdd.restrict(assignment).is_one()
     
+    
+    def find_integer_inputs(self, target_bools: Dict[str, int], condition_tested: str) -> Dict[str, int]:
+        #Finding integer inputs satisfying the target boolean values
+        s = Solver()
+        
+        # Creating Z3 variables for each condition
+        vars_dict = {}
+        for i in range(len(self.conditions)):
+            vars_dict[f"var_{i}"] = Int(f'var_{i}')
+        
+        # Extracting operators and values from condition descriptions
+        for var_name, target_value in target_bools.items():
+            idx = int(var_name[1:])  # Extracting index from Bx
+            desc = self.conditions[idx][0]
+            
+            # Parsing the condition description
+            parts = desc.split()
+            var = vars_dict[f"var_{idx}"]
+            op = parts[1]
+            value = int(parts[2])
+            
+            # Adding the constraint
+            s.add(self._create_constraint(var, op, value, bool(target_value)))
+        
+        # Adding boundary constraints
+        for var in vars_dict.values():
+            s.add(var >= -100, var <= 100)
 
-class Z3Tester:
-    def __init__(self):
-        self.conditions = [("x > 5", lambda env: env["x"] > 5)]
-        self.boolean_vars = [bddvar("B0")]
+        if s.check() == sat:
+            model = s.model()
+            return {name: model[var].as_long() 
+                   for name, var in vars_dict.items()}
+        return None
 
-    def _create_constraint(self, var, op: str, value: int, target: bool):
-        operators = {
-            '>': lambda x, y: x > y if target else x <= y,
-            '<': lambda x, y: x < y if target else x >= y,
-            '>=': lambda x, y: x >= y if target else x < y,
-            '<=': lambda x, y: x <= y if target else x > y,
-            '==': lambda x, y: x == y if target else x != y,
-            '!=': lambda x, y: x != y if target else x == y
-        }
+# Testing find_integer_inputs
+conditions = [
+    ("x > 5", lambda env: env["var_0"] > 5),
+    ("y != 10", lambda env: env["var_1"] != 10),
+]
 
-        if op not in operators:
-            raise ValueError(f"Unsupported operator: {op}")
+tester = MCDCIntegerTester(conditions, "B0 OR B1")
 
-        return operators[op](var, value)
+# Target boolean condition: B0 = True, B1 = False
+target_bools: Dict[str, int] = {
+    'B0': 1,
+    'B1': 0
+}
 
-    def evaluate_condition(self, env):
-        return self.conditions[0][1](env)
+inputs = tester.find_integer_inputs(target_bools, "B0")
 
-# Testing _create_constraint
-tester = Z3Tester()
-x = Int("x")
-constraint = tester._create_constraint(x, ">", 5, True)
+# Print result
+print("Generated Inputs:", inputs)
 
-s = Solver()
-s.add(constraint)
-s.add(x < 10)
-
-if s.check() == sat:
-    print("Constraint satisfied with:", s.model())
-else:
-    print("No solution found")
-
-# Testing evaluate_condition
-print("Evaluate condition with x = 7:", tester.evaluate_condition({"x": 7}))  
-print("Evaluate condition with x = 4:", tester.evaluate_condition({"x": 4}))  
