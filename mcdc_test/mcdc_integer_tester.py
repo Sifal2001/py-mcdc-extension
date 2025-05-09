@@ -238,18 +238,54 @@ class MCDCIntegerTester:
             'total_conditions': total_conditions
         }
 
-#Testing get_coverage_report
-conditions = [
-    ("x > 0", lambda env: env["var_0"] > 0),
-    ("y < 5", lambda env: env["var_1"] < 5)
-]
-tester = MCDCIntegerTester(conditions, "B0 AND B1")
+def test_different_structures():
+    # Test Case 1: Simple OR
+    print("\n=== Testing B0 OR B1 ===")
+    conditions1 = [
+        ("x > 5", lambda env: env["var_0"] > 5),
+        ("y != 10", lambda env: env["var_1"] != 10)
+    ]
+    tester1 = MCDCIntegerTester(conditions1, "B0 OR B1")
+    test_cases1 = tester1.generate_mcdc_tests()
+    print_results(test_cases1, tester1.get_coverage_report())
 
-tester.generate_mcdc_tests()
-report = tester.get_coverage_report()
+    # Test Case 2: Complex with NOT
+    print("\n=== Testing (B0 AND B1) OR (NOT B2) ===")
+    conditions2 = [
+        ("x > 5", lambda env: env["var_0"] > 5),
+        ("y != 10", lambda env: env["var_1"] != 10),
+        ("z == 3", lambda env: env["var_2"] == 3)
+    ]
+    tester2 = MCDCIntegerTester(conditions2, "(B0 AND B1) OR (NOT B2)")
+    test_cases2 = tester2.generate_mcdc_tests()
+    print_results(test_cases2, tester2.get_coverage_report())
 
-print("=== Coverage Report ===")
-print(f"Total Conditions: {report['total_conditions']}")
-print(f"Covered Conditions: {report['covered_conditions']}")
-print(f"Coverage %: {report['coverage_percentage']}")
-print(f"Total Test Cases: {report['total_cases']}")
+    # Test Case 3: Nested Structure
+    print("\n=== Testing (B0 AND (B1 OR NOT B2)) OR B3 ===")
+    conditions3 = [
+        ("x > 5", lambda env: env["var_0"] > 5),
+        ("y != 10", lambda env: env["var_1"] != 10),
+        ("z == 3", lambda env: env["var_2"] == 3),
+        ("a < 42", lambda env: env["var_3"] < 42)
+    ]
+    tester3 = MCDCIntegerTester(conditions3, "(B0 AND (B1 OR NOT B2)) OR B3")
+    test_cases3 = tester3.generate_mcdc_tests()
+    print_results(test_cases3, tester3.get_coverage_report())
+
+def print_results(test_cases, coverage_report):
+    print("\nGenerated MC/DC Test Cases:")
+    for i, test in enumerate(test_cases, 1):
+        print(f"\nTest Case {i}:")
+        print(f"Inputs: {test['inputs']}")
+        print(f"Expected Output: {test['expected_output']}")
+        print(f"Testing Condition: {test['condition_tested']} = {test['condition_value']}")
+        print(f"Boolean Assignments: {test['assignments']}")
+    
+    print(f"\nCoverage Report:")
+    print(f"Total Conditions: {coverage_report['total_conditions']}")
+    print(f"Coverage Percentage: {coverage_report['coverage_percentage']}%")
+    print(f"Covered Conditions: {', '.join(coverage_report['covered_conditions'])}")
+    print(f"Total Test Cases: {coverage_report['total_cases']}")
+
+if __name__ == "__main__":
+    test_different_structures()
