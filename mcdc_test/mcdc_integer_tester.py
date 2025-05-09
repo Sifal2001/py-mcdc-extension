@@ -1,11 +1,15 @@
 from pyeda.inter import *
 from itertools import product
 from z3 import ( 
+    Solver,
+    Int,
+    sat,
+    BoolRef,
     Or as Z3Or, 
     Bool as Z3Bool,
 
 )
-from typing import List, Tuple
+from typing import Dict, List, Tuple, Union, Callable
 from datetime import datetime
 
 
@@ -102,18 +106,69 @@ class MCDCIntegerTester:
         tokens = _tokenize(decision_str)
         return _parse_tokens(tokens)
     
-#Testing tokens 
-if __name__ == "__main__":
-    conditions = [
-        ("x > 5", lambda env: env["var_0"] > 5),
-        ("y != 10", lambda env: env["var_1"] != 10)
-    ]
-    decision_structure = "B0 AND B1"
-    tester = MCDCIntegerTester(conditions, decision_structure)
+    def _create_constraint(self, var, op: str, value: int, target: bool) -> BoolRef:
+        operators = {
+            '>': lambda x, y: x > y if target else x <= y,
+            '<': lambda x, y: x < y if target else x >= y,
+            '>=': lambda x, y: x >= y if target else x < y,
+            '<=': lambda x, y: x <= y if target else x > y,
+            '==': lambda x, y: x == y if target else x != y,
+            '!=': lambda x, y: x != y if target else x == y
+        }
 
-    print("Truth Table (from BDD):")
-    print("B0 B1 | Output")
-    for b0, b1 in product([0, 1], repeat=2):
-        result = tester.bdd.restrict({tester.boolean_vars[0]: b0,
-                                      tester.boolean_vars[1]: b1}).is_one()
-        print(f" {b0}  {b1}  |   {int(result)}")
+        if op not in operators:
+            raise ValueError(f"Unsupported operator: {op}")
+            
+        return operators[op](var, value)
+
+    def evaluate_condition(self, env: Dict) -> bool:
+        # Creating a dictionary of boolean values for each condition
+        bool_values = {}
+        for i, (desc, cond) in enumerate(self.conditions):
+            bool_values[f"B{i}"] = cond(env)
+        
+        # Evaluating using the BDD with the assigned values
+        assignment = {var: bool_values[var.name] for var in self.boolean_vars}
+        return self.bdd.restrict(assignment).is_one()
+    
+
+class Z3Tester:
+    def __init__(self):
+        self.conditions = [("x > 5", lambda env: env["x"] > 5)]
+        self.boolean_vars = [bddvar("B0")]
+
+    def _create_constraint(self, var, op: str, value: int, target: bool):
+        operators = {
+            '>': lambda x, y: x > y if target else x <= y,
+            '<': lambda x, y: x < y if target else x >= y,
+            '>=': lambda x, y: x >= y if target else x < y,
+            '<=': lambda x, y: x <= y if target else x > y,
+            '==': lambda x, y: x == y if target else x != y,
+            '!=': lambda x, y: x != y if target else x == y
+        }
+
+        if op not in operators:
+            raise ValueError(f"Unsupported operator: {op}")
+
+        return operators[op](var, value)
+
+    def evaluate_condition(self, env):
+        return self.conditions[0][1](env)
+
+# Testing _create_constraint
+tester = Z3Tester()
+x = Int("x")
+constraint = tester._create_constraint(x, ">", 5, True)
+
+s = Solver()
+s.add(constraint)
+s.add(x < 10)
+
+if s.check() == sat:
+    print("Constraint satisfied with:", s.model())
+else:
+    print("No solution found")
+
+# Testing evaluate_condition
+print("Evaluate condition with x = 7:", tester.evaluate_condition({"x": 7}))  
+print("Evaluate condition with x = 4:", tester.evaluate_condition({"x": 4}))  
